@@ -235,7 +235,7 @@ function getEstimatedCostDistance(slots,callback){
         else if(slots.vehicleType=='pickup truck') {cost=(distance*0.5).toFixed(2);min=5;}
         else if(slots.vehicleType=='box truck') {cost=(distance*0.8).toFixed(2);min=8;}
         if(cost<=min) cost=min;
-        callback("$"+cost+" ("+res.rows[0]["elements"][0]["distance"]["text"]+")");
+        callback("*$"+cost+"* ("+res.rows[0]["elements"][0]["distance"]["text"]+")");
     });
 }
 
@@ -388,7 +388,7 @@ function responseActionButton(event){
                             data={
                                 team_channel:teamId+res.channel,
                                 event_ts:eventTs,
-                                active:true,
+                                active:false,
                                 slots:Slots,
                                 intenName:dataLex.intentName,
                                 sessionId:LexSessRes.id,
