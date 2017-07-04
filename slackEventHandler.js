@@ -1,5 +1,5 @@
 const AWS = require('aws-sdk');
-const botAlias='test';
+const botAlias='prod';
 const botName='logibot';
 const lexruntime = new AWS.LexRuntime({apiVersion: '2016-11-28'});
 const https = require('https');
