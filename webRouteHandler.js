@@ -28,7 +28,7 @@ function processEvent(event, context, callback) {
 
 }
 function postEvent(event,data,callback){
-    data=Object.assign(event,{name:data.name,slots:data.slots,sessionId:data.sessionId,id:data.id});
+    data=Object.assign(event,{name:data.name,slots:data.slots,sessionId:data.sessionId,id:data.id,channel:data.channel,teamId:data.teamId});
     putDDB('Jobs',data,(errJobs,dataJobs)=>{
         console.log(errJobs);
         const params = {
@@ -36,7 +36,7 @@ function postEvent(event,data,callback){
           botName: botName, 
           userId: data.sessionId, 
           inputText:'done',
-          sessionAttributes: {JobsId:data.id,sessionId:data.sessionId}
+          sessionAttributes: {JobsId:data.id}
         };
         lexruntime.postText(params, function(errLex, dataLex) {
           console.log("errLex",errLex);
