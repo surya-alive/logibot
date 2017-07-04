@@ -363,8 +363,9 @@ function responseActionButton(event){
                 console.log(dataLex);
                 let LexSessRes=dataLex.sessionAttributes;
                 paramsToSlack={token:tokenAccess.bot,channel:channelId,text:dataLex.message};
-                Slots=dataLex.slots; 
-                 if(dataLex.slotToElicit=="addressRoute"){
+                Slots=dataLex.slots;
+                responseAction=false;
+                if(dataLex.slotToElicit=="addressRoute"){
                     getEstimatedCostDistance(Slots,(result)=>{
                         const jobId = crypto.createHash('sha256').update(LexSessRes.id).digest('hex');
                         data={
@@ -372,7 +373,9 @@ function responseActionButton(event){
                             sessionId:LexSessRes.id,
                             status:"getRoute",
                             slots: Slots,
-                            name:LexSessRes.user
+                            name:LexSessRes.user,
+                            teamId:teamId,
+                            channel:event.channel.id
                         };
                         console.log("data",data);
                         putDDB('Jobs',data,(err,data)=>{
@@ -384,7 +387,6 @@ function responseActionButton(event){
                             res=JSON.parse(response.body);
                             if(LexSessRes.ts!=undefined) eventTs=Number(LexSessRes.ts);
                             else eventTs=Number(res.ts);
-                            responseAction=false;
                             data={
                                 team_channel:teamId+res.channel,
                                 event_ts:eventTs,
@@ -402,11 +404,20 @@ function responseActionButton(event){
                         });
                     });
                 } else {
+                    if(dataLex.slotToElicit=="vehicleType"){
+                        attachKey={attachments:attachmentVehicleType(),text:dataLex.message};
+                        paramsToSlack=Object.assign(paramsToSlack,attachKey);
+                        responseAction=true;
+                    }
+                    if(dataLex.slotToElicit=="paymentType"){
+                        attachKey={attachments:attachmentPaymentType(),text:dataLex.message};
+                        paramsToSlack=Object.assign(paramsToSlack,attachKey);
+                        responseAction=true;
+                    }
                     connectSlackApi('POST',paramsToSlack,slackPostMessage,(response)=>{
                         res=JSON.parse(response.body);
                         if(LexSessRes.ts!=undefined) eventTs=Number(LexSessRes.ts);
                         else eventTs=Number(res.ts);
-                        responseAction=false;
                         data={
                             team_channel:teamId+res.channel,
                             event_ts:eventTs,
