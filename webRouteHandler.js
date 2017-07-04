@@ -1,5 +1,7 @@
 const AWS = require('aws-sdk');
-
+const botAlias='prod';
+const botName='logibot';
+const lexruntime = new AWS.LexRuntime({apiVersion: '2016-11-28'});
 exports.handler = (event, context, callback) => {
     // TODO implement
     console.log(event);
@@ -27,8 +29,20 @@ function processEvent(event, context, callback) {
 }
 function postEvent(event,data,callback){
     data=Object.assign(event,{name:data.name,slots:data.slots,sessionId:data.sessionId,id:data.id});
-    putDDB('Jobs',data,(err,data)=>{
-        console.log(err);
+    putDDB('Jobs',data,(errJobs,dataJobs)=>{
+        console.log(errJobs);
+        const params = {
+          botAlias: botAlias,
+          botName: botName, 
+          userId: data.sessionId, 
+          inputText:'done',
+          sessionAttributes: {JobsId:data.id,sessionId:data.sessionId}
+        };
+        lexruntime.postText(params, function(errLex, dataLex) {
+          console.log("errLex",errLex);
+          console.log("dataLex",dataLex);
+        });
+        
         callback(null,{status:"done"});
     });
 }
