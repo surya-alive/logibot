@@ -1,21 +1,52 @@
 const AWS = require('aws-sdk');
-const https = require('https');
-const querystring = require('querystring');
-const s3 = new AWS.S3();
-let job;
-let tokenAccess;
+const botAlias='prod';
+const botName='logibot';
+const lexruntime = new AWS.LexRuntime({apiVersion: '2016-11-28'});
+exports.handler = (event, context, callback) => {
+    // TODO implement
+    console.log(event);
+    if(!event.key) callback(null, "unknown");
+    else processEvent(event, context, callback);
+};
 
+function processEvent(event, context, callback) {
+    readDDB("Jobs","id = :id",{":id":event.key},(err,data)=>{
+        if (err) {
+            console.log("Unable to query. Error:", JSON.stringify(err, null, 2));
+            callback(err);
+        } else {
+            if(data.Count==0){
+                callback(null,{result:"notfound"});
+            }else if(event.type=="post"){
+                postEvent(event,data.Items[0],callback)
+            } else {
+                if(data.Items[0].status=="getRoute") callback(null,{result:"found",data:data.Items[0]});
+                callback(null,{result:"done"});
+            }
+        }
+    });
 
-function attachmentsHelper(){
-    params='path=enc:'+job.waypoints+'&size=600x400'+'&markers=color:green|label:A|'+job.start_point[0]+','+job.start_point[1]+'&markers=color:red|label:B|'+
-            job.end_point[0]+','+job.end_point[1];
-    imageStaticMap="https://maps.googleapis.com/maps/api/staticmap?"+params;
-    return JSON.stringify([{ "color": "#2D9EB2", "attachment_type": "default",
-        "fields": [{"title":"Shipping Cost","value":"$"+job.cost,"short":true}],
-        "image_url":imageStaticMap
-    }]);
 }
-
+function postEvent(event,data,callback){
+    data=Object.assign(event,{name:data.name,slots:data.slots,sessionId:data.sessionId,id:data.id,
+        channel:data.channel,teamId:data.teamId,userId:data.userId});
+    putDDB('Jobs',data,(errJobs,dataJobs)=>{
+        console.log(errJobs);
+        const params = {
+          botAlias: botAlias,
+          botName: botName, 
+          userId: data.sessionId, 
+          inputText:'done',
+          sessionAttributes: {JobsId:data.id}
+        };
+        lexruntime.postText(params, function(errLex, dataLex) {
+          console.log("errLex",errLex);
+          console.log("dataLex",dataLex);
+        });
+        
+        callback(null,{status:"done"});
+    });
+}
 function readDDB(table,query,value,callback){
     const docClient = new AWS.DynamoDB.DocumentClient();
     const params = {
@@ -27,53 +58,13 @@ function readDDB(table,query,value,callback){
         callback(err,data);
     });
 }
-
-function connectSlackApi(params, callback) {
-    const options={};
-    options.method='POST';
-    options.hostname='slack.com';
-    options.port=443;
-    options.path='/api/chat.postMessage?'+querystring.stringify(params);
-    options.headers= {
-        "Content-Type": "application/x-www-form-urlencoded"
+function putDDB(table,data,callback){
+    const docClient = new AWS.DynamoDB.DocumentClient();
+    const params = {
+        TableName:table,
+        Item:data
     };
-        
-    const postReq = https.request(options, (res) => {
-       const chunks = [];
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-            if (callback) {
-                callback({
-                    body: chunks.join(''),
-                    statusCode: res.statusCode,
-                    statusMessage: res.statusMessage,
-                });
-            }
-        });
-        return res;
-    });
-    postReq.end();
-}
-
-function sendDetailOrder(){
-    
-    paramsToSlack={token:tokenAccess,channel:job.channel,text:'Thank you, <@'+job.userId+'>! \nYour order has been placed successfully',
-        attachments:attachmentsHelper()};
-    connectSlackApi(paramsToSlack,(response)=>{
-        res=JSON.parse(response.body);
+    docClient.put(params, (err, data)=> {
+        callback(err,data);
     });
 }
-
-exports.handler = (event, context, callback) => {
-    console.log(event);
-    readDDB("Jobs","id = :id",{":id":event.sessionAttributes.JobsId},(err,data)=>{
-        if(err) console.log("errJobsRead",JSON.stringify(err, null, 2));
-        job=data.Items[0];
-        readDDB("Team","team_id = :teamId",{":teamId":job.teamId},(errTeam,dataTeam)=>{
-            if(errTeam) console.log("errTeam",JSON.stringify(errTeam, null, 2));
-            tokenAccess=dataTeam.Items[0].bot.bot_access_token;
-            sendDetailOrder();
-        });
-    });
-};
