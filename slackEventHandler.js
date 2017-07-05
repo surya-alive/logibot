@@ -375,7 +375,8 @@ function responseActionButton(event){
                             slots: Slots,
                             name:LexSessRes.user,
                             teamId:teamId,
-                            channel:event.channel.id
+                            channel:event.channel.id,
+                            userId:event.event.user
                         };
                         console.log("data",data);
                         putDDB('Jobs',data,(err,data)=>{
