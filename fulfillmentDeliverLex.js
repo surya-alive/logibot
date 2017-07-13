@@ -1,18 +1,18 @@
 const AWS = require('aws-sdk');
+const s3Bucket = new AWS.S3( { params: {Bucket: 'logibot'} } );
 const https = require('https');
 const querystring = require('querystring');
 const encrypted = process.env.zendesk;
 const zendeskHost = 'logibot.zendesk.com';
+const logibotHost = 'https://d29k6spz7jvo9f.cloudfront.net';
 let zendeskToken;
 
 let job;
 let tokenAccess;
+let imageStaticMap;
 
 
 function attachmentsHelper(){
-    params='path=enc:'+job.waypoints+'&size=600x400'+'&markers=color:green|label:A|'+job.start_point[0]+','+job.start_point[1]+'&markers=color:red|label:B|'+
-            job.end_point[0]+','+job.end_point[1];
-    imageStaticMap="https://maps.googleapis.com/maps/api/staticmap?"+params;
     return JSON.stringify([{ "color": "#2D9EB2", "attachment_type": "default",
         "fields": [{"title":"Shipping Cost","value":"$"+job.cost,"short":true},
         {"title":"Distance","value":job.distance+" km","short":true},
@@ -21,8 +21,33 @@ function attachmentsHelper(){
         {"title":"Pickup Address","value":job.start_address},
         {"title":"Delivery Address","value":job.end_address},
         ],
-        "image_url":imageStaticMap
+        "image_url":logibotHost+`/map-static/${job.key}/route-map.png`
     }]);
+}
+
+function connectImageMap(params, callback) {
+    const options={};
+    options.method='GET';
+    options.hostname='maps.googleapis.com';
+    options.port=443;
+    options.headers={"Content-Type":"text/html,application/xhtml+xml"};
+    options.path='/maps/api/staticmap?'+params;
+        
+    const postReq = https.request(options, (res) => {
+       const data = [];
+
+        res.on('data', (chunk)=> {
+            data.push(chunk);
+        }).on('end', ()=> {
+            const buffer = Buffer.concat(data);
+            if (callback) {
+                callback({
+                    content: buffer
+                });
+            }
+        });
+    });
+    postReq.end();
 }
 
 function readDDB(table,query,value,callback){
@@ -94,7 +119,7 @@ function connectZendesk(data, callback) {
 }
 
 function sendDetailOrder(ticketId){
-    paramsToSlack={token:tokenAccess,channel:job.channel,text:'Thank you, <@'+job.userId+'>! The order has been placed successfully\nYour tracking number is `'+ticketId+'`',
+    paramsToSlack={token:tokenAccess,channel:job.channel,text:'Thank you, <@'+job.userId+'>! The order has been placed successfully\nYour tracking order ID is `'+ticketId+'`',
         attachments:attachmentsHelper()};
     connectSlackApi(paramsToSlack,(response)=>{
         res=JSON.parse(response.body);
@@ -122,7 +147,14 @@ function processEvent(event,context,callback){
             }
             connectZendesk(JSON.stringify(ticket),res=>{
                 res=JSON.parse(res.body);
-                sendDetailOrder(res.ticket.id);
+                params='path=enc:'+job.waypoints+'&size=600x400'+'&markers=color:green|label:A|'+job.start_point[0]+','+job.start_point[1]+'&markers=color:red|label:B|'+
+                    job.end_point[0]+','+job.end_point[1];
+                connectImageMap(params,body=>{
+                    data = {Key: `map-static/${job.key}/route-map.png`, Body: body.content, ContentEncoding: 'base64',ContentType: 'image/png',ACL:'public-read'};
+                    s3Bucket.putObject(data, function(err, data){
+                        sendDetailOrder(res.ticket.id);
+                    });
+                });
             });
         });
     });
