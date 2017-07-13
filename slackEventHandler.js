@@ -9,7 +9,7 @@ const encrypted = process.env.token;
 const googleKeyEnc = process.env.googleKey;
 const hostname='slack.com';
 const hostGoogleMap = 'maps.googleapis.com';
-const logibotHost = 'https://d3iy0q28stikpi.cloudfront.net';
+const logibotHost = 'https://d29k6spz7jvo9f.cloudfront.net';
 const slackGetProfilePath='/api/users.profile.get?';
 const slackPostMessage='/api/chat.postMessage?';
 let decrypted;
@@ -29,9 +29,9 @@ function attachmentPaymentType(text){
 }
 
 function attachmentVehicleType(){
-    return JSON.stringify([{"title": "Motorcycle","callback_id": "VehicleType", "color":"#562BB2", "fields": [{"title":"Less than 10KM","value":"Cost is $2","short":true},{"title":"More than 10KM","value":"Cost is $0.2/KM","short":true},{"title": "Dimension", "value": "70cm x 70cm x 70cm", "short": true },{"title": "Max Weight", "value": "20Kg", "short": true } ], "actions": [{"name": "motorcycle","text": "Choose Motorcyle", "style": "primary", "type": "button", "value": "motorcycle"} ], "thumb_url": logibotHost+"/assets/img/pickup-motorcycle.png"},
-    {"title": "Pickup Truck","callback_id": "VehicleType", "color":"#562BB2", "fields": [{"title":"Less than 10KM","value":"Cost is $5","short":true},{"title":"More than 10KM","value":"Cost is $0.5/KM","short":true},{"title": "Dimension", "value": "200cm x 130cm x 120cm", "short": true }, {"title": "Max Weight", "value": "80Kg", "short": true } ], "actions": [{"name": "pickup", "text": "Choose Pickup Truck", "style": "primary", "type": "button", "value": "pickup truck"} ], "thumb_url": logibotHost+"/assets/img/pickup-truck.png"},
-    {"title": "Box Truck", "callback_id": "VehicleType", "color":"#562BB2", "fields": [{"title":"Less than 10KM","value":"Cost is $8","short":true},{"title":"More than 10KM","value":"Cost is $0.8/KM","short":true},{"title": "Dimension", "value": "200cm x 130cm x 120cm", "short": true }, {"title": "Max Weight", "value": "160Kg", "short": true } ], "actions": [{"name": "box", "text": "Choose Box Truck", "style": "primary", "type": "button", "value": "box truck"} ], "thumb_url": logibotHost+"/assets/img/pickup-box.png"}]);
+    return JSON.stringify([{"title": "Motorcycle","callback_id": "VehicleType", "color":"#FFC500", "fields": [{"title":"Less than 10KM","value":"Cost is $2","short":true},{"title":"More than 10KM","value":"Cost is $0.2/KM","short":true},{"title": "Dimension", "value": "70cm x 70cm x 70cm", "short": true },{"title": "Max Weight", "value": "20Kg", "short": true } ], "actions": [{"name": "motorcycle","text": "Choose Motorcyle", "style": "primary", "type": "button", "value": "motorcycle"} ], "thumb_url": logibotHost+"/assets/img/pickup-motorcycle.png"},
+    {"title": "Pickup Truck","callback_id": "VehicleType", "color":"#8063D5", "fields": [{"title":"Less than 10KM","value":"Cost is $5","short":true},{"title":"More than 10KM","value":"Cost is $0.5/KM","short":true},{"title": "Dimension", "value": "200cm x 130cm x 120cm", "short": true }, {"title": "Max Weight", "value": "80Kg", "short": true } ], "actions": [{"name": "pickup", "text": "Choose Pickup Truck", "style": "primary", "type": "button", "value": "pickup truck"} ], "thumb_url": logibotHost+"/assets/img/pickup-truck.png"},
+    {"title": "Box Truck", "callback_id": "VehicleType", "color":"#2A0077", "fields": [{"title":"Less than 10KM","value":"Cost is $8","short":true},{"title":"More than 10KM","value":"Cost is $0.8/KM","short":true},{"title": "Dimension", "value": "200cm x 130cm x 120cm", "short": true }, {"title": "Max Weight", "value": "160Kg", "short": true } ], "actions": [{"name": "box", "text": "Choose Box Truck", "style": "primary", "type": "button", "value": "box truck"} ], "thumb_url": logibotHost+"/assets/img/pickup-box.png"}]);
 }
 
 function attachRouteUrlCost(key){
@@ -161,9 +161,12 @@ function getUser(userId,callback){
                 params={token:tokenAccess.app,user:userId};
                 connectSlackApi('GET',params,slackGetProfilePath,(response)=>{
                     res=JSON.parse(response.body);
-                    key={user_id:userId,team_id:teamId};
-                    data=Object.assign(key, res.profile);
+                    profile=res.profile;
+                    if(res.profile.email && res.profile.email!='') email = res.profile.email;
+                    else email = '-';
+                    data={user_id:userId,team_id:teamId,first_name:profile.first_name,last_name:profile.last_name,real_name:profile.real_name,email:email};
                     putDDB('User',data,(err,data)=>{
+                        if(err) console.log("Unable to putDDB User. Error:", JSON.stringify(err, null, 2));
                         firstname=res.profile.first_name;
                         callback(false);
                     });
@@ -230,6 +233,7 @@ function getEstimatedCostDistance(slots,callback){
     params={units:"meter",origins:slots.pickupCityAddress,destinations:slots.deliverCityAddress,key:googleKeyDec};
     connectHttps('GET',params,hostGoogleMap,"/maps/api/distancematrix/json?",(response)=>{
         res=JSON.parse(response.body);
+        console.log(res.rows[0]["elements"]);
         const distance=res.rows[0]["elements"][0]["distance"]["value"]/1000;
         if(slots.vehicleType=='motorcycle') {cost=(distance*0.2).toFixed(2); min=2}
         else if(slots.vehicleType=='pickup truck') {cost=(distance*0.5).toFixed(2);min=5;}
@@ -258,7 +262,7 @@ function recognizeText(event,callback){
     const sessionId=teamId+event.channel+event.event_ts;
     console.log(sessionId);
     const inputTextSanit=event.text.replace(mentionBot,"");
-    postTextLex(sessionId,{id:sessionId,type:"initial",teamChannel:teamId+event.channel,user:firstname},inputTextSanit, (err, data)=> {
+    postTextLex(sessionId,{id:sessionId,type:"initial",teamChannel:teamId+event.channel,teamId:teamId,channelId:event.channel,user:firstname},inputTextSanit, (err, data)=> {
         console.log(data);
         if (err) {
             console.log(err, err.stack);
@@ -271,24 +275,23 @@ function recognizeText(event,callback){
                     if(sessionLex.Count>0){
                         console.log("lexS");
                         qSession=sessionLex.Items[0];
-                        postTextLex(qSession.sessionId,{id:qSession.sessionId,
+                        if(!qSession.responseAction) postTextLex(qSession.sessionId,{id:qSession.sessionId,teamId:teamId,channelId:event.channel,
                         user:firstname,type:"codeHook",ts:String(qSession.event_ts),teamChannel:teamChannel,slots:JSON.stringify(qSession.slots)},inputTextSanit, (err, dataLex)=> {
                             if(err) console.log("dataLex",err);
                             console.log(dataLex);
-                            if(dataLex.dialogState=='ReadyForFulfillment' || dataLex.dialogState=='Failed') {
+                            if(dataLex.dialogState=='ReadyForFulfillment' || dataLex.dialogState=='Failed' || dataLex.dialogState=='Fulfilled') {
                                 updateDDB('SessionLex',{team_channel:teamChannel,event_ts:Number(dataLex.sessionAttributes.ts)},
                                 "set active = :active, slots = :slots",{":active":false,":slots":dataLex.slots},(err,data)=>{
                                     if(err) console.log(err);
                                 });
-                            } 
+                            }
                             else callback(true,true,dataLex);
                         });
                     } else {
-                        /* cek session apakah block channel atau tidak */
                         callback(true,false,data); 
                     }
                 });
-            } else if(data.intentName=='salutation'){
+            } else if(data.intentName=='salutation' || data.intentName=='no' || data.intentName=='thank' || data.intentName=='yes'){
                 callback(true,false,data);
             } else {
                 //create session baru
@@ -316,6 +319,12 @@ function responseMsg(event){
                     attachKey={attachments:attachmentVehicleType(),text:resLex.message};
                     paramsToSlack=Object.assign(paramsToSlack,attachKey);
                     responseAction=true;
+                }
+                if(resLex.slotToElicit=="pickupCityAddress"){
+                    paramsToSlack=Object.assign(paramsToSlack,{text:resLex.message+"\n_(Can be village, subdistrict, or city)_"});
+                }
+                if(resLex.slotToElicit=="deliverCityAddress"){
+                    paramsToSlack=Object.assign(paramsToSlack,{text:resLex.message+"\n_(Can be village, subdistrict, or city)_"});
                 }
                 if(resLex.slotToElicit=="paymentType"){
                     attachKey={attachments:attachmentPaymentType(),text:resLex.message};
@@ -358,7 +367,7 @@ function responseActionButton(event){
         readDDBResponseAction(teamChannel,Number(event.original_message.ts),(err,data)=>{
             console.log("dataCI",data.Items[0]);
             qSession=data.Items[0];
-            postTextLex(qSession.sessionId,{id:qSession.sessionId,user:firstname,type:"codeHook",ts:String(qSession.event_ts),teamChannel:teamChannel,slots:JSON.stringify(qSession.slots)},event.actions[0].value, (err, dataLex)=> {
+            postTextLex(qSession.sessionId,{id:qSession.sessionId,user:firstname,type:"codeHook",ts:String(qSession.event_ts),teamChannel:teamChannel,teamId:teamId,channelId:channelId,slots:JSON.stringify(qSession.slots)},event.actions[0].value, (err, dataLex)=> {
                 if(err) console.log("dataLex",err);
                 console.log(dataLex);
                 let LexSessRes=dataLex.sessionAttributes;
@@ -376,7 +385,7 @@ function responseActionButton(event){
                             name:LexSessRes.user,
                             teamId:teamId,
                             channel:event.channel.id,
-                            userId:event.event.user
+                            userId:event.user.id
                         };
                         console.log("data",data);
                         putDDB('Jobs',data,(err,data)=>{
@@ -409,6 +418,9 @@ function responseActionButton(event){
                         attachKey={attachments:attachmentVehicleType(),text:dataLex.message};
                         paramsToSlack=Object.assign(paramsToSlack,attachKey);
                         responseAction=true;
+                    }
+                    if(dataLex.slotToElicit=="pickupCityAddress" || dataLex.slotToElicit=="deliverCityAddress"){
+                        paramsToSlack=Object.assign(paramsToSlack,{text:dataLex.message+"\n_(Can be village, subdistrict, or city)_"});
                     }
                     if(dataLex.slotToElicit=="paymentType"){
                         attachKey={attachments:attachmentPaymentType(),text:dataLex.message};
@@ -445,7 +457,9 @@ function dispatch(event){
     if(event.callback_id){
         responseActionButton(event);
     }
-    else if(event.event.type=="message" && event.event.username!='logibot' && event.event.subtype!='bot_message' && event.event.subtype!='message_changed'){
+    else if(event.event.type=="message" && event.event.username!='logibot' 
+        && event.event.subtype!='bot_message' && event.event.subtype!='message_changed'
+        && event.event.subtype!='group_join' && event.event.subtype!='channel_join'){
         responseMsg(event);
     }
 }
