@@ -1,6 +1,6 @@
 # Logibot Repository #
 
-This repository is available as a separate branch:
+This repository is available as separated branch:
 
 * [Lambda function](https://bitbucket.org/surya_alive/logibot/src/21f04e59abbaecf846ef9a414a0a851ea9953158/?at=lambda-function)
 
