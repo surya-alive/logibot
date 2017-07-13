@@ -21,6 +21,9 @@ export class HomePage {
   	Blocation;
   	distance;
   	vehicleType;
+  	buttonOrderTxt;
+  	name;
+  	isEnableOrderButton=true;
 
   	constructor(public navCtrl: NavController,public navParams: NavParams,private transactionService: TransactionService,private cd: ChangeDetectorRef) {
   		this.distance=0;
@@ -44,7 +47,13 @@ export class HomePage {
   				this.titlePage="Transaction is not found";
   				this.isLoadPage=false;
   				this.showTittle=true;
-  			} else if(trx.result=="found"){
+  			} 
+  			else if(trx.result=="done"){
+  				this.titlePage="Transaction has been done";
+  				this.isLoadPage=false;
+  				this.showTittle=true;
+  			}
+  			else if(trx.result=="found"){
   				this.titlePage="Please route me your customer location, "+trx.data.name;
   				this.vehicleType=trx.data.slots.vehicleType;
 				this.loadMap(trx.data);
@@ -59,6 +68,7 @@ export class HomePage {
   	}
 	 
 	loadMap(data){
+		this.name=data.name;
 		let mapOptions = {
 			mapTypeId: google.maps.MapTypeId.ROADMAP
 	    }
@@ -86,12 +96,13 @@ export class HomePage {
 	}
 
 	placeOrder(){
-		console.log(this.directionsRender.getDirections());
-		console.log(this.directionsRender.getDirections().routes[0].legs[0].start_location.lat());
-		console.log(this.directionsRender.getDirections().routes[0].legs[0].start_location.lng());
+		this.isEnableOrderButton=false;
+		this.buttonOrderTxt="Processing...";
 		const routes=this.directionsRender.getDirections().routes[0].legs[0];
 		const data={
 			type:"post",
+			status:"done",
+			key:this.getParameterByName('key'),
 			distance:this.distance,
 			cost:this.cost,
 			start_address:routes.start_address,
@@ -100,7 +111,21 @@ export class HomePage {
 			end_point:[routes.end_location.lat(),routes.end_location.lng()],
 			waypoints:this.directionsRender.getDirections().routes[0].overview_polyline
 		}
-		console.log(data);
+		this.isLoadPage=true;
+  		this.showTittle=false;
+		this.transactionService.getTransaction(data).subscribe(trx=>{
+			this.titlePage="Transaction has been done";
+			this.buttonOrderTxt="Thank you, "+this.name+"!";
+  			this.isLoadPage=false;
+  			this.showTittle=true;
+  			this.cd.detectChanges();
+  		},e=>{
+  			this.titlePage=e;
+        	this.isLoadPage=false;
+        	this.showTittle=true;
+        	this.cd.detectChanges();
+        	console.log(e);
+      });
 	}
 
 	computeTotalDistance(result) {
@@ -121,6 +146,7 @@ export class HomePage {
         else if(this.vehicleType=='box truck') {this.cost=(total*0.8).toFixed(2);min=8;}
         //minimum 
         if(this.cost<=min) this.cost=min;
+        this.buttonOrderTxt="Place Order $"+this.cost;
         this.cd.detectChanges();
      }
 

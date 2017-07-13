@@ -1,5 +1,5 @@
 <ion-header>
-  <ion-navbar>
+  <ion-navbar color="primary">
     <ion-title text-center>
        <ion-spinner name="dots" [hidden]="!isLoadPage"></ion-spinner>
        <span [hidden]="!showTittle">{{titlePage}}</span>
@@ -10,29 +10,28 @@
 <ion-content>
   <div #map id="map"></div> 
   <ion-list [hidden]="!isFound">
-    <ion-item style="color:green">
+    <ion-item style="color:green" text-wrap>
       <ion-avatar item-start padding-left padding-top>
         A
       </ion-avatar>
       <h2>Your Location</h2>
       <h3>{{Alocation}}</h3>
     </ion-item>
-
-    <ion-item style="color:#F7685C">
+    <ion-item style="color:#F7685C" text-wrap>
       <ion-avatar item-start padding-left padding-top>
         B
       </ion-avatar>
       <h2>Customer Location</h2>
       <h3>{{Blocation}}</h3>
     </ion-item>
-    <ion-item>
+    <ion-item text-wrap>
       <ion-icon name="md-pin" item-start padding-left></ion-icon>
          <ion-row no-margin>
           <ion-col padding-top>
             Distance {{distance}}KM - carried  by <span text-capitalize>{{vehicleType}}</span> ${{cost}}
           </ion-col>
           <ion-col>
-            <button (click)="placeOrder()" float-end ion-button block round padding>Place Order ${{cost}}</button>
+            <button  [disabled]="!isEnableOrderButton" (click)="placeOrder()" float-end ion-button block round padding>{{buttonOrderTxt}}</button>
           </ion-col>
         </ion-row>
     </ion-item>
