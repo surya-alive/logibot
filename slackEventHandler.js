@@ -19,13 +19,16 @@ let firstname;
 let teamId;
 let botUserId;
 let mentionBot;
+let response;
+
+
 
 function attachmentConfirmCity(text){
     return JSON.stringify([{"pretext": text, "fallback": "", "callback_id": "confirmCity", "color": "#2D9EB2", "attachment_type": "default", "actions": [{"name": "yes", "text": "Yes, correct", "type": "button", "value": "yes", "style":"primary"}, {"name": "no", "text": "No, Let me correct it!", "type": "button", "value": "no"} ] }]);
 }
 
 function attachmentPaymentType(text){
-    return JSON.stringify([{"pretext": text, "fallback": "", "callback_id": "paymentType", "color": "#2D9EB2", "attachment_type": "default", "actions": [{"name": "Cash", "text": "Cash", "type": "button", "value": "Cash", "style":"primary"},{"name": "Debit Card", "text": "Debit Card", "type": "button", "value": "Debit Card"},{"name": "Credit Card", "text": "Credit Card", "type": "button", "value": "Credit Card"} ] }]);
+    return JSON.stringify([{"pretext": text, "fallback": "", "callback_id": "paymentType", "color": "#2D9EB2", "attachment_type": "default", "actions": [{"name": "Cash", "text": "Cash", "type": "button", "value": "Cash"},{"name": "Debit Card", "text": "Debit Card", "type": "button", "value": "Debit Card"},{"name": "Credit Card", "text": "Credit Card", "type": "button", "value": "Credit Card"} ] }]);
 }
 
 function attachmentVehicleType(){
@@ -162,9 +165,10 @@ function getUser(userId,callback){
                 connectSlackApi('GET',params,slackGetProfilePath,(response)=>{
                     res=JSON.parse(response.body);
                     profile=res.profile;
-                    if(res.profile.email && res.profile.email!='') email = res.profile.email;
+                    if(res.profile.email && res.profile.email!='' && res.profile.email!=null) email = res.profile.email;
                     else email = '-';
-                    data={user_id:userId,team_id:teamId,first_name:profile.first_name,last_name:profile.last_name,real_name:profile.real_name,email:email};
+                    data={user_id:userId,team_id:teamId,first_name:profile.first_name,last_name:(profile.last_name!='')?profile.last_name:'-',real_name:profile.real_name,email:email};
+                    console.log("dataUser",data);
                     putDDB('User',data,(err,data)=>{
                         if(err) console.log("Unable to putDDB User. Error:", JSON.stringify(err, null, 2));
                         firstname=res.profile.first_name;
@@ -265,8 +269,8 @@ function recognizeText(event,callback){
     postTextLex(sessionId,{id:sessionId,type:"initial",teamChannel:teamId+event.channel,teamId:teamId,channelId:event.channel,user:firstname},inputTextSanit, (err, data)=> {
         console.log(data);
         if (err) {
-            console.log(err, err.stack);
-            callback(false,false,data);
+            console.log("error PostLex", err.stack);
+            return callback(false,false,data);
         } else{
             if(data.intentName===null) {
                 const teamChannel=teamId+event.channel;
@@ -285,82 +289,23 @@ function recognizeText(event,callback){
                                     if(err) console.log(err);
                                 });
                             }
-                            else callback(true,true,dataLex);
+                            else return callback(true,true,dataLex);
                         });
                     } else {
-                        callback(true,false,data); 
+                        return callback(true,false,data); 
                     }
                 });
             } else if(data.intentName=='salutation' || data.intentName=='no' || data.intentName=='thank' || data.intentName=='yes'){
-                callback(true,false,data);
+                return callback(true,false,data);
             } else {
                 //create session baru
-                callback(true,true,data);
+                return callback(true,true,data);
             }
         }
     });
 }
 
-
-function responseMsg(event){
-    getUser(event.event.user,(err)=>{
-        recognizeText(event.event,(err,createSession,resLex)=>{
-            let LexSessRes=resLex.sessionAttributes;
-            let responseAction=false;
-            paramsToSlack={token:tokenAccess.bot,channel:event.event.channel,text:resLex.message};
-            Slots=resLex.slots;
-            if(resLex.dialogState=="ConfirmIntent") {
-                Slots=JSON.parse(LexSessRes.slots);
-                attachKey={attachments:attachmentConfirmCity(resLex.message),text:""};
-                paramsToSlack=Object.assign(paramsToSlack,attachKey);
-                responseAction=true;
-            } else if(resLex.dialogState=="ElicitSlot"){
-                if(resLex.slotToElicit=="vehicleType"){
-                    attachKey={attachments:attachmentVehicleType(),text:resLex.message};
-                    paramsToSlack=Object.assign(paramsToSlack,attachKey);
-                    responseAction=true;
-                }
-                if(resLex.slotToElicit=="pickupCityAddress"){
-                    paramsToSlack=Object.assign(paramsToSlack,{text:resLex.message+"\n_(Can be village, subdistrict, or city)_"});
-                }
-                if(resLex.slotToElicit=="deliverCityAddress"){
-                    paramsToSlack=Object.assign(paramsToSlack,{text:resLex.message+"\n_(Can be village, subdistrict, or city)_"});
-                }
-                if(resLex.slotToElicit=="paymentType"){
-                    attachKey={attachments:attachmentPaymentType(),text:resLex.message};
-                    paramsToSlack=Object.assign(paramsToSlack,attachKey);
-                    responseAction=true;
-                }
-            }
-            connectSlackApi('POST',paramsToSlack,slackPostMessage,(response)=>{
-                res=JSON.parse(response.body);
-                if(createSession){
-                    console.log("ts", LexSessRes.ts);
-                    console.log("res", res);
-                    if(LexSessRes.ts!=undefined) eventTs=Number(LexSessRes.ts);
-                    else eventTs=Number(res.ts);
-                    data={
-                        team_channel:teamId+res.channel,
-                        event_ts:eventTs,
-                        active:true,
-                        slots:Slots,
-                        intenName:resLex.intentName,
-                        sessionId:LexSessRes.id,
-                        lastUser:LexSessRes.user,
-                        responseAction:responseAction,
-                        responseTs:Number(res.ts)
-                    };
-                    putDDB('SessionLex',data,(err,data)=>{
-                        console.log(err);
-                    });
-                }
-            });
-        });
-    });
-}
-
-
-function responseActionButton(event){
+function responseActionButton(event,callback){
     getUser(event.user.id,(err)=>{
         const teamChannel=teamId+event.channel.id;
         const channelId = event.channel.id;
@@ -410,6 +355,7 @@ function responseActionButton(event){
                             };
                             putDDB('SessionLex',data,(err,data)=>{
                                 console.log(err);
+                                return callback(true);
                             });
                         });
                     });
@@ -444,6 +390,7 @@ function responseActionButton(event){
                         };
                         putDDB('SessionLex',data,(err,data)=>{
                             console.log(err);
+                            return callback(true);
                         });
                     });
                     
@@ -453,19 +400,65 @@ function responseActionButton(event){
     });
 }
 
-function dispatch(event){
-    if(event.callback_id){
-        responseActionButton(event);
-    }
-    else if(event.event.type=="message" && event.event.username!='logibot' 
-        && event.event.subtype!='bot_message' && event.event.subtype!='message_changed'
-        && event.event.subtype!='group_join' && event.event.subtype!='channel_join'){
-        responseMsg(event);
-    }
+function responseMsg(event,callback){
+    getUser(event.event.user,(err)=>{
+        recognizeText(event.event,(err,createSession,resLex)=>{
+            let LexSessRes=resLex.sessionAttributes;
+            let responseAction=false;
+            paramsToSlack={token:tokenAccess.bot,channel:event.event.channel,text:resLex.message};
+            Slots=resLex.slots;
+            if(resLex.dialogState=="ConfirmIntent") {
+                Slots=JSON.parse(LexSessRes.slots);
+                attachKey={attachments:attachmentConfirmCity(resLex.message),text:""};
+                paramsToSlack=Object.assign(paramsToSlack,attachKey);
+                responseAction=true;
+            } else if(resLex.dialogState=="ElicitSlot"){
+                if(resLex.slotToElicit=="vehicleType"){
+                    attachKey={attachments:attachmentVehicleType(),text:resLex.message};
+                    paramsToSlack=Object.assign(paramsToSlack,attachKey);
+                    responseAction=true;
+                }
+                if(resLex.slotToElicit=="pickupCityAddress"){
+                    paramsToSlack=Object.assign(paramsToSlack,{text:resLex.message+"\n_(Can be village, subdistrict, or city)_"});
+                }
+                if(resLex.slotToElicit=="deliverCityAddress"){
+                    paramsToSlack=Object.assign(paramsToSlack,{text:resLex.message+"\n_(Can be village, subdistrict, or city)_"});
+                }
+                if(resLex.slotToElicit=="paymentType"){
+                    attachKey={attachments:attachmentPaymentType(),text:resLex.message};
+                    paramsToSlack=Object.assign(paramsToSlack,attachKey);
+                    responseAction=true;
+                }
+            }
+            connectSlackApi('POST',paramsToSlack,slackPostMessage,(response)=>{
+                res=JSON.parse(response.body);
+                if(createSession){
+                    console.log("ts", LexSessRes.ts);
+                    console.log("res", res);
+                    if(LexSessRes.ts!=undefined) eventTs=Number(LexSessRes.ts);
+                    else eventTs=Number(res.ts);
+                    data={
+                        team_channel:teamId+res.channel,
+                        event_ts:eventTs,
+                        active:true,
+                        slots:Slots,
+                        intenName:resLex.intentName,
+                        sessionId:LexSessRes.id,
+                        lastUser:LexSessRes.user,
+                        responseAction:responseAction,
+                        responseTs:Number(res.ts)
+                    };
+                    putDDB('SessionLex',data,(err,data)=>{
+                        console.log("putDDB SessionLex",err);
+                        return callback(true);
+                    });
+                }
+            });
+        });
+    });
 }
 
-
-function getTokenAccess(event){
+function getTokenAccess(event,callback){
     readDDB("Team","team_id = :teamId",{":teamId":teamId},(err,data)=>{
         if (err) {
             console.log("Unable to query. Error:", JSON.stringify(err, null, 2));
@@ -473,7 +466,20 @@ function getTokenAccess(event){
             tokenAccess={bot:data.Items[0].bot.bot_access_token,app:data.Items[0].access_token};
             botUserId=data.Items[0].bot.bot_user_id;
             mentionBot="<@"+botUserId+">";
-            dispatch(event);
+            if(event.callback_id){
+                responseActionButton(event,result=>{
+                    callback(true);
+                });
+            } else if(event.event.type=="message" && event.event.username!='logibot' 
+                && event.event.subtype!='bot_message' && event.event.subtype!='message_changed'
+                && event.event.subtype!='group_join' && event.event.subtype!='channel_join'
+                && event.event.subtype!='pinned_item' && event.event.subtype!='member_joined_channel'){
+                    responseMsg(event,result=>{
+                        callback(true);
+                    });
+            } else {
+                callback(true);
+            }
         }
     });
 }
@@ -482,15 +488,15 @@ function processEvent(event, context, callback) {
     if(event.token==decrypted){
         if(event.team) teamId=event.team.id;
         else teamId=event.team_id;
-        getTokenAccess(event);
-        if(event.actions){
-            if(event.callback_id=="confirmCity") response=confirmCity(event);
-            if(event.callback_id=="VehicleType") response=VehicleType(event);
-            if(event.callback_id=="paymentType") response=paymentType(event);
-        } else response={challenge:event.challenge};
-        callback(null, response);
-    }
-    callback(null, 'unknown');
+        getTokenAccess(event,result=>{
+            if(event.actions){
+                if(event.callback_id=="confirmCity") response=confirmCity(event);
+                if(event.callback_id=="VehicleType") response=VehicleType(event);
+                if(event.callback_id=="paymentType") response=paymentType(event);
+            } else response={challenge:event.challenge};
+            return callback(null, response);
+        });
+    } else return callback(null, 'unknown');
 }
 
 exports.handler = (event, context, callback) => {
