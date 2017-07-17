@@ -473,7 +473,8 @@ function getTokenAccess(event,callback){
             } else if(event.event.type=="message" && event.event.username!='logibot' 
                 && event.event.subtype!='bot_message' && event.event.subtype!='message_changed'
                 && event.event.subtype!='group_join' && event.event.subtype!='channel_join'
-                && event.event.subtype!='pinned_item' && event.event.subtype!='member_joined_channel'){
+                && event.event.subtype!='pinned_item' && event.event.subtype!='member_joined_channel'
+                && event.event.subtype!='channel_created' && event.event.subtype!='channel_purpose'){
                     responseMsg(event,result=>{
                         callback(true);
                     });
