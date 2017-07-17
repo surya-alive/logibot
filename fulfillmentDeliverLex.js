@@ -135,7 +135,7 @@ function processEvent(event,context,callback){
             tokenAccess=dataTeam.Items[0].bot.bot_access_token;
             ticket={
                 ticket:{
-                    subject:"Placed Order from Slack",
+                    subject:"Placed Order from Slack"+` [${dataTeam.Items[0].team_name}, ${job.name}]`,
                     description:"Pickup Address: "+job.start_address+"\nDelivery Address: "+job.end_address,
                     type:"task",
                     tags:["sales"],
@@ -147,7 +147,7 @@ function processEvent(event,context,callback){
             }
             connectZendesk(JSON.stringify(ticket),res=>{
                 res=JSON.parse(res.body);
-                params='path=enc:'+job.waypoints+'&size=600x400'+'&markers=color:green|label:A|'+job.start_point[0]+','+job.start_point[1]+'&markers=color:red|label:B|'+
+                params='path=enc:'+job.waypoints+'&size=800x600'+'&markers=color:green|label:A|'+job.start_point[0]+','+job.start_point[1]+'&markers=color:red|label:B|'+
                     job.end_point[0]+','+job.end_point[1];
                 connectImageMap(params,body=>{
                     data = {Key: `map-static/${job.key}/route-map.png`, Body: body.content, ContentEncoding: 'base64',ContentType: 'image/png',ACL:'public-read'};
